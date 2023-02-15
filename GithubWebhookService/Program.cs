@@ -2,25 +2,29 @@
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using System.Text.Json.Nodes;
 
 namespace GithubWebhookService
 {
     public class Program
     {
+        static AgentConfiguration configuration = new();
+
         public static void Main(string[] args)
         {
-            using (var host = WebHost.Start("http://shadowaid.com:8080", ProcessWebRequest))
+            JsonSerializer serializer = new JsonSerializer();
+            configuration = serializer.Deserialize<AgentConfiguration>(new JsonTextReader(new StreamReader("configuration.json")));
+            using (var host = WebHost.Start(configuration.Host, ProcessWebRequest))
             {
                 Console.WriteLine("Use Ctrl-C to shutdown the host...");
                 host.WaitForShutdown();
             }
         }
 
-        public static async Task ProcessWebRequest(HttpContext app)
+        private static async Task ProcessWebRequest(HttpContext app)
         {
-            string mainBranch = "refs/heads/main";
+            string mainBranch = configuration.Branch;
             string pushEvent = "push";
             StreamReader sr = new StreamReader(app.Request.Body);
             string eventType = (string)app.Request.Headers["x-GitHub-Event"];
@@ -32,6 +36,7 @@ namespace GithubWebhookService
                 if (branchUpdated != null && branchUpdated.Equals(mainBranch))
                 {
                     await app.Response.WriteAsync($"Branch {branchUpdated} pushed new changes.");
+                    UpdateService();
                 }
                 else
                 {
@@ -40,7 +45,36 @@ namespace GithubWebhookService
             }
             else
             {
-                await app.Response.WriteAsync($"No Github Event, or nonpush event: {pushEvent}");
+                await app.Response.WriteAsync($"No Github Event, or nonpush event: {eventType}");
+            }
+        }
+
+        private static void UpdateService()
+        {
+            foreach (string c in configuration.UpdateCommands)
+            {
+                ExecuteCommandSync(c);
+            }
+        }
+
+        public static void ExecuteCommandSync(object command)
+        {
+            try
+            {
+                System.Diagnostics.ProcessStartInfo procStartInfo =
+                    new System.Diagnostics.ProcessStartInfo("cmd", "/c " + command);
+
+                procStartInfo.RedirectStandardOutput = true;
+                procStartInfo.UseShellExecute = false;
+                procStartInfo.CreateNoWindow = true;
+                System.Diagnostics.Process proc = new System.Diagnostics.Process();
+                proc.StartInfo = procStartInfo;
+                proc.Start();
+                string result = proc.StandardOutput.ReadToEnd();
+                Console.WriteLine(result);
+            }
+            catch (Exception)
+            {
             }
         }
     }

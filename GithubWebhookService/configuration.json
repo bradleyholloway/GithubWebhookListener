@@ -1,0 +1,7 @@
+{
+  "Host": "http://shadowaid.com:8081",
+  "Branch": "refs/heads/main",
+  "UpdateCommands": [
+    "call update.bat"
+  ]
+}
