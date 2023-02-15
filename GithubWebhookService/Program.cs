@@ -2,6 +2,8 @@
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Newtonsoft.Json.Linq;
+using System.Text.Json.Nodes;
 
 namespace GithubWebhookService
 {
@@ -21,6 +23,7 @@ namespace GithubWebhookService
             StreamReader sr = new StreamReader(app.Request.Body);
             string body = await sr.ReadToEndAsync();
             Console.WriteLine(body);
+            JObject j = JObject.Parse(body);
             await app.Response.WriteAsync("Hello, World!");
         }
     }
