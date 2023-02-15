@@ -20,11 +20,28 @@ namespace GithubWebhookService
 
         public static async Task ProcessWebRequest(HttpContext app)
         {
+            string mainBranch = "refs/heads/main";
+            string pushEvent = "push";
             StreamReader sr = new StreamReader(app.Request.Body);
-            string body = await sr.ReadToEndAsync();
-            Console.WriteLine(body);
-            JObject j = JObject.Parse(body);
-            await app.Response.WriteAsync("Hello, World!");
+            string eventType = (string)app.Request.Headers["x-GitHub-Event"];
+            if (eventType != null && eventType.Equals(pushEvent))
+            {
+                string body = await sr.ReadToEndAsync();
+                JObject j = JObject.Parse(body);
+                string branchUpdated = (string)j["ref"];
+                if (branchUpdated != null && branchUpdated.Equals(mainBranch))
+                {
+                    await app.Response.WriteAsync($"Branch {branchUpdated} pushed new changes.");
+                }
+                else
+                {
+                    await app.Response.WriteAsync($"Github push for untracked branch: {branchUpdated}");
+                }
+            }
+            else
+            {
+                await app.Response.WriteAsync($"No Github Event, or nonpush event: {pushEvent}");
+            }
         }
     }
 }
