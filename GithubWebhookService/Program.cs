@@ -9,7 +9,7 @@ namespace GithubWebhookService
     {
         public static void Main(string[] args)
         {
-            using (var host = WebHost.Start("http://localhost", ProcessWebRequest))
+            using (var host = WebHost.Start("http://shadowaid.com:8080", ProcessWebRequest))
             {
                 Console.WriteLine("Use Ctrl-C to shutdown the host...");
                 host.WaitForShutdown();
@@ -18,6 +18,9 @@ namespace GithubWebhookService
 
         public static async Task ProcessWebRequest(HttpContext app)
         {
+            StreamReader sr = new StreamReader(app.Request.Body);
+            string body = await sr.ReadToEndAsync();
+            Console.WriteLine(body);
             await app.Response.WriteAsync("Hello, World!");
         }
     }
