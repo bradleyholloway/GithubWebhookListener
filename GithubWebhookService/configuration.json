@@ -1,7 +1,13 @@
 {
-  "Host": "http://shadowaid.com:8081",
-  "Branch": "refs/heads/main",
-  "UpdateCommands": [
-    "call update.bat"
+  "Host": "http://shadowaid.com:3500",
+  "Configurations": [
+    {
+      "Repo":  "bradleyholloway/hpgame",
+      "Branch": "refs/heads/main",
+      "UpdateCommands": [
+        "cd /home/shadowaid/hpgame/client;git pull;export NODE_OPTIONS=--openssl-legacy-provider;npm run build;cp -ar dist/. /var/www/html/hp;cp -ar src/assets/. /var/www/html/hp/src/assets"
+      ],
+      "Shell":  "bash"
+    }
   ]
 }

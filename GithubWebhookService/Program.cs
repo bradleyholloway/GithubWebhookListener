@@ -9,13 +9,19 @@ namespace GithubWebhookService
 {
     public class Program
     {
-        static AgentConfiguration configuration = new();
+        static AgentConfigurations configurations = new();
+        static Dictionary<string, AgentConfiguration> configurationDictionary = new Dictionary<string, AgentConfiguration>(StringComparer.OrdinalIgnoreCase);
 
         public static void Main(string[] args)
         {
             JsonSerializer serializer = new JsonSerializer();
-            configuration = serializer.Deserialize<AgentConfiguration>(new JsonTextReader(new StreamReader("configuration.json")));
-            using (var host = WebHost.Start(configuration.Host, ProcessWebRequest))
+            configurations = serializer.Deserialize<AgentConfigurations>(new JsonTextReader(new StreamReader("configuration.json")));
+            foreach (AgentConfiguration c in configurations.Configurations)
+            {
+                configurationDictionary[c.Repo] = c;
+            }
+
+            using (var host = WebHost.Start(configurations.Host, ProcessWebRequest))
             {
                 Console.WriteLine("Use Ctrl-C to shutdown the host...");
                 host.WaitForShutdown();
@@ -24,7 +30,6 @@ namespace GithubWebhookService
 
         private static async Task ProcessWebRequest(HttpContext app)
         {
-            string mainBranch = configuration.Branch;
             string pushEvent = "push";
             StreamReader sr = new StreamReader(app.Request.Body);
             string eventType = (string)app.Request.Headers["x-GitHub-Event"];
@@ -32,11 +37,20 @@ namespace GithubWebhookService
             {
                 string body = await sr.ReadToEndAsync();
                 JObject j = JObject.Parse(body);
-                string branchUpdated = (string)j["ref"];
-                if (branchUpdated != null && branchUpdated.Equals(mainBranch))
+                string repositoryUpdated = (string)j["repository"]["full_name"];
+                if (!configurationDictionary.ContainsKey(repositoryUpdated))
                 {
-                    await app.Response.WriteAsync($"Branch {branchUpdated} pushed new changes.");
-                    UpdateService();
+                    await app.Response.WriteAsync($"Github push for untracked repo: {repositoryUpdated}");
+                    return;
+                }
+
+                AgentConfiguration config = configurationDictionary[repositoryUpdated];
+
+                string branchUpdated = (string)j["ref"];
+                if (branchUpdated != null && branchUpdated.Equals(config.Branch, StringComparison.OrdinalIgnoreCase))
+                {
+                    await app.Response.WriteAsync($"Branch {branchUpdated} pushed new changes. Updating.");
+                    UpdateService(config);
                 }
                 else
                 {
@@ -49,20 +63,20 @@ namespace GithubWebhookService
             }
         }
 
-        private static void UpdateService()
+        private static void UpdateService(AgentConfiguration c)
         {
-            foreach (string c in configuration.UpdateCommands)
+            foreach (string command in c.UpdateCommands)
             {
-                ExecuteCommandSync(c);
+                ExecuteCommandSync(command, c);
             }
         }
 
-        public static void ExecuteCommandSync(object command)
+        public static void ExecuteCommandSync(object command, AgentConfiguration c)
         {
             try
             {
                 System.Diagnostics.ProcessStartInfo procStartInfo =
-                    new System.Diagnostics.ProcessStartInfo("cmd", "/c " + command);
+                    new System.Diagnostics.ProcessStartInfo(c.Shell ?? "cmd", "/c " + command);
 
                 procStartInfo.UseShellExecute = false;
                 procStartInfo.CreateNoWindow = true;
